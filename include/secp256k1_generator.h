@@ -104,6 +104,16 @@ typedef struct {
     unsigned char data[64];
 } secp256k1_pedersen_commitment;
 
+/** Reinterpret a pedersen commitment as a public key
+ *
+ *  In:     comm:   a pointer to a pedersen commitment
+ *  Out:    key:    a pointer to a public key
+ */
+SECP256K1_API void secp256k1_pedersen_commitment_as_key(
+    secp256k1_pedersen_commitment* comm,
+    secp256k1_pubkey* key
+) SECP256K1_ARG_NONNULL(1) SECP256K1_ARG_NONNULL(2);
+
 /** Parse a 33-byte commitment into a commitment object.
  *
  *  Returns: 1 if input contains a valid commitment.

@@ -36,7 +36,6 @@ static const secp256k1_generator secp256k1_generator_h_internal = {{
 
 const secp256k1_generator *secp256k1_generator_h = &secp256k1_generator_h_internal;
 
-
 static void secp256k1_generator_load(secp256k1_ge* ge, const secp256k1_generator* gen) {
     int succeed;
     succeed = secp256k1_fe_set_b32(&ge->x, &gen->data[0]);
@@ -256,6 +255,16 @@ static void secp256k1_pedersen_commitment_save(secp256k1_pedersen_commitment* co
     secp256k1_fe_normalize(&ge->x);
     secp256k1_fe_get_b32(&commit->data[1], &ge->x);
     commit->data[0] = 9 ^ secp256k1_fe_is_quad_var(&ge->y);
+}
+
+void secp256k1_pedersen_commitment_as_key(secp256k1_pedersen_commitment* comm, secp256k1_pubkey* key) {
+    secp256k1_ge ge;
+
+    VERIFY_CHECK(comm != NULL);
+    VERIFY_CHECK(key != NULL);
+
+    secp256k1_pedersen_commitment_load(&ge, comm);
+    secp256k1_pubkey_save(key, &ge);
 }
 
 int secp256k1_pedersen_commitment_parse(const secp256k1_context* ctx, secp256k1_pedersen_commitment* commit, const unsigned char *input) {
