@@ -13,14 +13,14 @@ extern "C" {
 /** A function-like macro returning the size, in bytes, of an uncompressed
  * Bulletproof proving that a value lies in the range [0, 2^(n_bits) - 1]
  */
-#define SECP256K1_BULLETPROOFS_UNCOMPRESSED_SIZE(n_bits) (194UL + (n_bits) * 64)
+#define SECP256K1_BULLETPROOFS_UNCOMPRESSED_SIZE(n_bits) (194UL + (n_bits) * 64UL)
 
 /** Maximum size, in bytes, of an uncompressed rangeproof */
 extern const size_t SECP256K1_BULLETPROOFS_RANGEPROOF_UNCOMPRESSED_MAX_LENGTH;
 
 /** The same value, as a C macro so it can be used as C89 array size */
 #define SECP256K1_BULLETPROOFS_RANGEPROOF_UNCOMPRESSED_MAX_LENGTH_ \
-    SECP256K1_BULLETPROOFS_UNCOMPRESSED_SIZE(64)
+    SECP256K1_BULLETPROOFS_UNCOMPRESSED_SIZE(64UL)
 
 /** Opaque data structure that holds the current state of an uncompressed
  * Bulletproof proof generation. This data is not secret and does not need
