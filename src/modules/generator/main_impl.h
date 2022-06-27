@@ -267,6 +267,16 @@ void secp256k1_pedersen_commitment_as_key(secp256k1_pedersen_commitment* comm, s
     secp256k1_pubkey_save(key, &ge);
 }
 
+SECP256K1_API void secp256k1_pubkey_as_pedersen_commitment(const secp256k1_context* ctx, secp256k1_pubkey* key, secp256k1_pedersen_commitment* comm) {
+    secp256k1_ge ge;
+
+    VERIFY_CHECK(key != NULL);
+    VERIFY_CHECK(comm != NULL);
+
+    secp256k1_pubkey_load(ctx, &ge, key);
+    secp256k1_pedersen_commitment_save(comm, &ge);
+}
+
 int secp256k1_pedersen_commitment_parse(const secp256k1_context* ctx, secp256k1_pedersen_commitment* commit, const unsigned char *input) {
     secp256k1_fe x;
     secp256k1_ge ge;

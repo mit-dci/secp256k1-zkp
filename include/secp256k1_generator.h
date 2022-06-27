@@ -114,6 +114,18 @@ SECP256K1_API void secp256k1_pedersen_commitment_as_key(
     secp256k1_pubkey* key
 ) SECP256K1_ARG_NONNULL(1) SECP256K1_ARG_NONNULL(2);
 
+/** Reinterpret a public key as a pedersen commitment
+ *
+ *  Args:   ctx:    a secp256k1 context object.
+ *  In:     key:    a pointer to a public key
+ *  Out:    comm:   a pointer to a pedersen commitment
+ */
+SECP256K1_API void secp256k1_pubkey_as_pedersen_commitment(
+    const secp256k1_context* ctx,
+    secp256k1_pubkey* key,
+    secp256k1_pedersen_commitment* comm
+) SECP256K1_ARG_NONNULL(1) SECP256K1_ARG_NONNULL(2);
+
 /** Parse a 33-byte commitment into a commitment object.
  *
  *  Returns: 1 if input contains a valid commitment.
