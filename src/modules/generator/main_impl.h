@@ -257,6 +257,26 @@ static void secp256k1_pedersen_commitment_save(secp256k1_pedersen_commitment* co
     commit->data[0] = 9 ^ secp256k1_fe_is_square_var(&ge->y);
 }
 
+void secp256k1_pubkey_as_pedersen_commitment(const secp256k1_context* ctx, secp256k1_pubkey* key, secp256k1_pedersen_commitment* comm) {
+    secp256k1_ge ge;
+
+    VERIFY_CHECK(key != NULL);
+    VERIFY_CHECK(comm != NULL);
+
+    secp256k1_pubkey_load(ctx, &ge, key);
+    secp256k1_pedersen_commitment_save(comm, &ge);
+}
+
+void secp256k1_pedersen_commitment_as_key(secp256k1_pedersen_commitment* comm, secp256k1_pubkey* key) {
+    secp256k1_ge ge;
+
+    VERIFY_CHECK(comm != NULL);
+    VERIFY_CHECK(key != NULL);
+
+    secp256k1_pedersen_commitment_load(&ge, comm);
+    secp256k1_pubkey_save(key, &ge);
+}
+
 int secp256k1_pedersen_commitment_parse(const secp256k1_context* ctx, secp256k1_pedersen_commitment* commit, const unsigned char *input) {
     secp256k1_fe x;
     secp256k1_ge ge;
