@@ -203,4 +203,105 @@ int secp256k1_bppp_rangeproof_verify(
     );
 }
 
+int secp256k1_bppp_rangeproof_batch_add(
+    const secp256k1_context* ctx,
+    secp256k1_scratch_space *scratch,
+    const secp256k1_bppp_generators* gens,
+    const secp256k1_generator* asset_gen,
+    const unsigned char* proof,
+    const size_t plen,
+    const uint64_t n_bits,
+    const uint64_t base,
+    const uint64_t min_value,
+    const secp256k1_pedersen_commitment* commit,
+    secp256k1_ecmult_multi_batch *batch
+) {
+
+    secp256k1_ge commitp, asset_genp;
+
+    VERIFY_CHECK(ctx != NULL);
+    VERIFY_CHECK(scratch != NULL);
+    ARG_CHECK(gens != NULL);
+    ARG_CHECK(asset_gen != NULL);
+    ARG_CHECK(proof != NULL);
+    ARG_CHECK(commit != NULL);
+    ARG_CHECK(batch != NULL);
+
+    secp256k1_pedersen_commitment_load(&commitp, commit);
+    secp256k1_generator_load(&asset_genp, asset_gen);
+    secp256k1_fe_normalize_var(&commitp.x);
+    secp256k1_fe_normalize_var(&commitp.y);
+    secp256k1_fe_normalize_var(&asset_genp.x);
+    secp256k1_fe_normalize_var(&asset_genp.y);
+
+    return secp256k1_bppp_rangeproof_batch_add_impl(
+        ctx,
+        scratch,
+        gens,
+        &asset_genp,
+        proof,
+        plen,
+        n_bits,
+        base,
+        min_value,
+        &commitp,
+        batch
+    );
+}
+
+int secp256k1_bppp_rangeproof_batch_verify(
+    const secp256k1_context* ctx,
+    secp256k1_scratch_space *scratch,
+    const secp256k1_ecmult_multi_batch *batch
+) {
+    VERIFY_CHECK(ctx != NULL);
+    VERIFY_CHECK(scratch != NULL);
+    ARG_CHECK(batch != NULL);
+
+    return secp256k1_bppp_rangeproof_batch_verify_impl(
+        ctx,
+        scratch,
+        batch
+    );
+}
+
+secp256k1_ecmult_multi_batch *secp256k1_bppp_rangeproof_batch_create(
+    const secp256k1_context* ctx,
+    size_t n
+) {
+    secp256k1_ecmult_multi_batch * ret;
+    VERIFY_CHECK(ctx != NULL);
+
+    ret = (secp256k1_ecmult_multi_batch *)checked_malloc(&ctx->error_callback, sizeof(secp256k1_ecmult_multi_batch));
+    if (ret == NULL) {
+        return NULL;
+    }
+    ret->points = (secp256k1_ge*)checked_malloc(&ctx->error_callback, n * sizeof(*ret->points));
+    if (ret->points == NULL) {
+        free(ret);
+        return NULL;
+    }
+    ret->scalars = (secp256k1_scalar*)checked_malloc(&ctx->error_callback, n * sizeof(*ret->scalars));
+    if (ret->scalars == NULL) {
+        free(ret->points);
+        free(ret);
+        return NULL;
+    }
+    ret->capacity = n;
+    ret->n_members = 0;
+
+    return ret;
+}
+
+int secp256k1_bppp_rangeproof_batch_destroy(
+    const secp256k1_context* ctx,
+    secp256k1_ecmult_multi_batch *batch
+) {
+    VERIFY_CHECK(ctx != NULL);
+    ARG_CHECK(batch != NULL);
+
+    secp256k1_ecmult_multi_batch_destroy(batch);
+    return 1;
+}
+
 #endif

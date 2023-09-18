@@ -16,6 +16,13 @@
 #include "ecmult.h"
 #include "precomputed_ecmult.h"
 
+struct secp256k1_ecmult_multi_batch {
+    secp256k1_ge * points;
+    secp256k1_scalar * scalars;
+    size_t n_members;
+    size_t capacity;
+};
+
 #if defined(EXHAUSTIVE_TEST_ORDER)
 /* We need to lower these values for exhaustive tests because
  * the tables cannot have infinities in them (this breaks the
@@ -793,6 +800,66 @@ static int secp256k1_ecmult_multi_simple_var(secp256k1_gej *r, const secp256k1_s
     return 1;
 }
 
+static int secp256k1_ecmult_multi_batch_add(struct secp256k1_ecmult_multi_batch * batch, const secp256k1_ge * point, const secp256k1_scalar * scalar) {
+
+    if (batch->n_members == batch->capacity) {
+        size_t new_cap = batch->capacity * 2;
+        secp256k1_scalar * new_scs = (secp256k1_scalar *)checked_malloc(&default_error_callback, new_cap * sizeof(secp256k1_scalar));
+        secp256k1_ge * new_pts = (secp256k1_ge *)checked_malloc(&default_error_callback, new_cap * sizeof(secp256k1_ge));
+        if (new_scs == NULL || new_pts == NULL) {
+            return 0;
+        }
+        memcpy(new_scs, batch->scalars, batch->capacity * sizeof(secp256k1_scalar));
+        memcpy(new_pts, batch->points, batch->capacity * sizeof(secp256k1_ge));
+        free(batch->scalars);
+        free(batch->points);
+        batch->scalars = new_scs;
+        batch->points = new_pts;
+        batch->capacity = new_cap;
+    }
+
+    batch->points[batch->n_members] = *point;
+    batch->scalars[batch->n_members] = *scalar;
+
+    batch->n_members++;
+
+    return 1;
+}
+
+static int secp256k1_ecmult_multi_simple_defer(secp256k1_ecmult_multi_callback cb, void *cbdata, size_t n_points, struct secp256k1_ecmult_multi_batch * batch) {
+    size_t point_idx;
+
+    for (point_idx = 0; point_idx < n_points; point_idx++) {
+        secp256k1_ge point;
+        secp256k1_scalar scalar;
+        if (!cb(&scalar, &point, point_idx, cbdata)) {
+            return 0;
+        }
+        secp256k1_ecmult_multi_batch_add(batch, &point, &scalar);
+    }
+    return 1;
+}
+
+static int secp256k1_ecmult_multi_simple_finalize(secp256k1_gej *r, const secp256k1_scalar *inp_g_sc, const struct secp256k1_ecmult_multi_batch * batch) {
+    size_t idx;
+    secp256k1_gej tmpj;
+
+    secp256k1_gej_set_infinity(r);
+    secp256k1_gej_set_infinity(&tmpj);
+    /* r = inp_g_sc*G */
+    secp256k1_ecmult(r, &tmpj, &secp256k1_scalar_zero, inp_g_sc);
+    for (idx = 0; idx < batch->n_members; idx++) {
+        secp256k1_ge point = batch->points[idx];
+        secp256k1_gej pointj;
+        secp256k1_scalar scalar = batch->scalars[idx];
+        /* r += scalar*point */
+        secp256k1_gej_set_ge(&pointj, &point);
+        secp256k1_ecmult(&tmpj, &pointj, &scalar, NULL);
+        secp256k1_gej_add_var(r, r, &tmpj, NULL);
+    }
+    return 1;
+}
+
 /* Compute the number of batches and the batch size given the maximum batch size and the
  * total number of points */
 static int secp256k1_ecmult_multi_batch_size_helper(size_t *n_batches, size_t *n_batch_points, size_t max_n_batch_points, size_t n) {
@@ -858,6 +925,31 @@ static int secp256k1_ecmult_multi_var(const secp256k1_callback* error_callback, 
         n -= nbp;
     }
     return 1;
+}
+
+/* note: not sure we really need these; they're clearly incredibly minimal wrappers */
+static int secp256k1_ecmult_multi_defer(secp256k1_ecmult_multi_callback cb, void *cbdata, size_t n, struct secp256k1_ecmult_multi_batch * batch) {
+    return secp256k1_ecmult_multi_simple_defer(cb, cbdata, n, batch);
+}
+
+static int secp256k1_ecmult_multi_finalize(secp256k1_gej *r, const secp256k1_scalar *inp_g_sc, const secp256k1_ecmult_multi_batch * batch) {
+    secp256k1_gej_set_infinity(r);
+    if (inp_g_sc == NULL && batch->n_members == 0) {
+        return 1;
+    } else if (batch->n_members == 0) {
+        secp256k1_ecmult(r, r, &secp256k1_scalar_zero, inp_g_sc);
+        return 1;
+    }
+
+    return secp256k1_ecmult_multi_simple_finalize(r, inp_g_sc, batch);
+}
+
+static void secp256k1_ecmult_multi_batch_destroy(secp256k1_ecmult_multi_batch *batch) {
+
+    free(batch->points);
+    free(batch->scalars);
+    batch->n_members = 0;
+    batch->capacity = 0;
 }
 
 #endif /* SECP256K1_ECMULT_IMPL_H */

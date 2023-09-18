@@ -602,4 +602,156 @@ static int secp256k1_bppp_rangeproof_norm_product_verify(
 
     return secp256k1_gej_is_infinity(&res);
 }
+
+/* Slate a proof for verification. This function modifies the generators, c_vec and the challenge r. The
+   caller should make sure to back them up if they need to be reused.
+*/
+static int secp256k1_bppp_rangeproof_norm_product_batch_add(
+    const secp256k1_context* ctx,
+    secp256k1_scratch_space* scratch,
+    const unsigned char* proof,
+    size_t proof_len,
+    secp256k1_sha256* transcript,
+    const secp256k1_scalar* rho,
+    const secp256k1_bppp_generators* g_vec,
+    const secp256k1_ge *asset_genp,
+    size_t g_len,
+    const secp256k1_scalar* c_vec,
+    size_t c_vec_len,
+    const secp256k1_ge* commit,
+    secp256k1_ecmult_multi_batch * batch
+) {
+    secp256k1_scalar rho_f, mu_f, v, n, l, rho_inv, h_c;
+    secp256k1_scalar *gammas, *s_g, *s_h, *rho_inv_pows;
+    size_t i = 0, scratch_checkpoint;
+    int overflow;
+    size_t log_g_len, log_h_len;
+    size_t n_rounds;
+    size_t h_len = c_vec_len;
+
+    if (g_len == 0 || c_vec_len == 0) {
+        return 0;
+    }
+    log_g_len = secp256k1_bppp_log2(g_len);
+    log_h_len = secp256k1_bppp_log2(c_vec_len);
+    n_rounds = log_g_len > log_h_len ? log_g_len : log_h_len;
+
+    if (g_vec->n < (h_len + g_len) || (proof_len != 65 * n_rounds + 64)) {
+        return 0;
+    }
+
+    if (!secp256k1_is_power_of_two(g_len) ||  !secp256k1_is_power_of_two(h_len)) {
+        return 0;
+    }
+
+    secp256k1_scalar_set_b32(&n, &proof[n_rounds*65], &overflow); /* n */
+    if (overflow) return 0;
+    secp256k1_scalar_set_b32(&l, &proof[n_rounds*65 + 32], &overflow); /* l */
+    if (overflow) return 0;
+    if (secp256k1_scalar_is_zero(rho)) return 0;
+
+    /* Collect the gammas in a new vector */
+    scratch_checkpoint = secp256k1_scratch_checkpoint(&ctx->error_callback, scratch);
+    gammas = (secp256k1_scalar*)secp256k1_scratch_alloc(&ctx->error_callback, scratch, n_rounds * sizeof(secp256k1_scalar));
+    s_g = (secp256k1_scalar*)secp256k1_scratch_alloc(&ctx->error_callback, scratch, g_len * sizeof(secp256k1_scalar));
+    s_h = (secp256k1_scalar*)secp256k1_scratch_alloc(&ctx->error_callback, scratch, h_len * sizeof(secp256k1_scalar));
+    rho_inv_pows = (secp256k1_scalar*)secp256k1_scratch_alloc(&ctx->error_callback, scratch, log_g_len * sizeof(secp256k1_scalar));
+    if (gammas == NULL || s_g == NULL || s_h == NULL || rho_inv_pows == NULL) {
+        secp256k1_scratch_apply_checkpoint(&ctx->error_callback, scratch, scratch_checkpoint);
+        return 0;
+    }
+
+    /* Compute powers of rho_inv. Later used in g_factor computations*/
+    secp256k1_scalar_inverse_var(&rho_inv, rho);
+    secp256k1_bppp_powers_of_rho(rho_inv_pows, &rho_inv, log_g_len);
+
+    /* Compute rho_f = rho^(2^log_g_len) */
+    rho_f = *rho;
+    for (i = 0; i < log_g_len; i++) {
+        secp256k1_scalar_sqr(&rho_f, &rho_f);
+    }
+
+    for (i = 0; i < n_rounds; i++) {
+        secp256k1_scalar gamma;
+        secp256k1_sha256_write(transcript, &proof[i * 65], 65);
+        secp256k1_bppp_challenge_scalar(&gamma, transcript, 0);
+        gammas[i] = gamma;
+    }
+    /* s_g[0] = n * \prod_{j=0}^{log_g_len - 1} rho^(2^j)
+     *        = n * rho^(2^log_g_len - 1)
+     *        = n * rho_f * rho_inv */
+    secp256k1_scalar_mul(&s_g[0], &n, &rho_f);
+    secp256k1_scalar_mul(&s_g[0], &s_g[0], &rho_inv);
+    for (i = 1; i < g_len; i++) {
+        size_t log_i = secp256k1_bppp_log2(i);
+        size_t nearest_pow_of_two = (size_t)1 << log_i;
+        /* This combines the two multiplications of gammas and rho_invs in a
+         * single loop.
+         * s_g[i] = s_g[i - nearest_pow_of_two]
+         *            * e[log_i] * rho_inv^(2^log_i) */
+        secp256k1_scalar_mul(&s_g[i], &s_g[i - nearest_pow_of_two], &gammas[log_i]);
+        secp256k1_scalar_mul(&s_g[i], &s_g[i], &rho_inv_pows[log_i]);
+    }
+    s_h[0] = l;
+    secp256k1_scalar_set_int(&h_c, 0);
+    for (i = 1; i < h_len; i++) {
+        size_t log_i = secp256k1_bppp_log2(i);
+        size_t nearest_pow_of_two = (size_t)1 << log_i;
+        secp256k1_scalar_mul(&s_h[i], &s_h[i - nearest_pow_of_two], &gammas[log_i]);
+    }
+    secp256k1_scalar_inner_product(&h_c, c_vec, 0 /* a_offset */ , s_h, 0 /* b_offset */, 1 /* step */, h_len);
+    /* Compute v = n*n*mu_f + l*h_c where mu_f = rho_f^2 */
+    secp256k1_scalar_sqr(&mu_f, &rho_f);
+    secp256k1_scalar_mul(&v, &n, &n);
+    secp256k1_scalar_mul(&v, &v, &mu_f);
+    secp256k1_scalar_add(&v, &v, &h_c);
+
+    {
+        ecmult_verify_cb_data1 data1;
+        ecmult_verify_cb_data2 data2;
+        ecmult_verify_cb_data3 data3;
+        data1.proof = proof;
+        data1.commit = commit;
+        data1.gammas = gammas;
+        data2.g_vec = g_vec->gens;
+        data2.n_vec_len = g_len;
+        data2.s_g = s_g;
+        data2.s_h = s_h;
+        data2.v = &v;
+        data2.asset_genp = asset_genp;
+        data3.cb_data1 = &data1;
+        data3.cb_data2 = &data2;
+        data3.idx2 = 2*n_rounds + 1;
+
+        if (!secp256k1_ecmult_multi_defer(ecmult_verify_cb3, &data3, 2*n_rounds + 1 + g_len + h_len + 1, batch)) {
+            secp256k1_scratch_apply_checkpoint(&ctx->error_callback, scratch, scratch_checkpoint);
+            return 0;
+        }
+    }
+
+    secp256k1_scratch_apply_checkpoint(&ctx->error_callback, scratch, scratch_checkpoint);
+
+    return 1;
+}
+
+/* Verify a batch of proofs. This function modifies the generators, c_vec and the challenge r. The
+   caller should make sure to back them up if they need to be reused.
+*/
+static int secp256k1_bppp_rangeproof_norm_product_batch_verify(
+    const secp256k1_context* ctx,
+    secp256k1_scratch_space* scratch,
+    const secp256k1_ecmult_multi_batch *batch
+) {
+
+    secp256k1_gej res;
+    size_t scratch_checkpoint = 0;
+    if (!secp256k1_ecmult_multi_finalize(&res, NULL, batch)) {
+        secp256k1_scratch_apply_checkpoint(&ctx->error_callback, scratch, scratch_checkpoint);
+        return 0;
+    }
+
+    secp256k1_scratch_apply_checkpoint(&ctx->error_callback, scratch, scratch_checkpoint);
+
+    return secp256k1_gej_is_infinity(&res);
+}
 #endif

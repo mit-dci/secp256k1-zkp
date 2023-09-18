@@ -156,6 +156,61 @@ SECP256K1_API SECP256K1_WARN_UNUSED_RESULT int secp256k1_bppp_rangeproof_verify(
     size_t extra_commit_len
 ) SECP256K1_ARG_NONNULL(1) SECP256K1_ARG_NONNULL(2) SECP256K1_ARG_NONNULL(3) SECP256K1_ARG_NONNULL(4) SECP256K1_ARG_NONNULL(5) SECP256K1_ARG_NONNULL(10);
 
+struct secp256k1_ecmult_multi_batch;
+
+/** Adds a Bulletproofs++ rangeproof to a batch for aggregated verification. Returns 1 on success, 0 on failure.
+ *  Args:      ctx: pointer to a context object
+ *         scratch: pointer to a scratch space
+ *            gens: pointer to the generator set to use, which must have at least 2*n_bits generators
+ *       asset_gen: pointer to the asset generator for the CT commitment
+ *  In:      proof: pointer to a byte array containing the serialized proof
+ *            plen: length of the serialized proof
+ *          n_bits: size of range being proven, in bits. Must be a power of two,
+ *                  and at most 64.
+ *            base: base representation to be used in proof construction. Must be a power of two,
+ *       min_value: minimum value of the range being proven
+ *          commit: the Pedersen commitment being proven
+ *  In/Out:  batch: pointer to the buffer containing the batch to which the new proof will be added
+ *       batch_len: pointer to current size of the batch (will be unchanged if 0 is returned)
+ */
+SECP256K1_API SECP256K1_WARN_UNUSED_RESULT int secp256k1_bppp_rangeproof_batch_add(
+    const secp256k1_context* ctx,
+    secp256k1_scratch_space *scratch,
+    const secp256k1_bppp_generators* gens,
+    const secp256k1_generator* asset_gen,
+    const unsigned char* proof,
+    const size_t plen,
+    const uint64_t n_bits,
+    const uint64_t base,
+    const uint64_t min_value,
+    const secp256k1_pedersen_commitment* commit,
+    struct secp256k1_ecmult_multi_batch *batch
+) SECP256K1_ARG_NONNULL(1) SECP256K1_ARG_NONNULL(2) SECP256K1_ARG_NONNULL(3) SECP256K1_ARG_NONNULL(4) SECP256K1_ARG_NONNULL(5) SECP256K1_ARG_NONNULL(10) SECP256K1_ARG_NONNULL(11);
+
+/** Executes verification on a Bulletproofs++ rangeproof batch. Returns 1 on success, 0 on failure.
+ *  Args:      ctx: pointer to a context object
+ *         scratch: pointer to a scratch space
+ *            gens: pointer to the generator set to use, which must have at least 2*n_bits generators
+ *       asset_gen: pointer to the asset generator for the CT commitment
+ *  In:      batch: pointer to the buffer containing the batch to which the new proof will be added
+ *       batch_len: size of the batch
+ */
+SECP256K1_API SECP256K1_WARN_UNUSED_RESULT int secp256k1_bppp_rangeproof_batch_verify(
+    const secp256k1_context* ctx,
+    secp256k1_scratch_space *scratch,
+    const struct secp256k1_ecmult_multi_batch *batch
+) SECP256K1_ARG_NONNULL(1) SECP256K1_ARG_NONNULL(2) SECP256K1_ARG_NONNULL(3);
+
+SECP256K1_API struct secp256k1_ecmult_multi_batch *secp256k1_bppp_rangeproof_batch_create(
+    const secp256k1_context *ctx,
+    size_t n
+) SECP256K1_ARG_NONNULL(1);
+
+SECP256K1_API SECP256K1_WARN_UNUSED_RESULT int secp256k1_bppp_rangeproof_batch_destroy(
+    const secp256k1_context* ctx,
+    struct secp256k1_ecmult_multi_batch *batch
+) SECP256K1_ARG_NONNULL(1) SECP256K1_ARG_NONNULL(2);
+
 # ifdef __cplusplus
 }
 # endif
