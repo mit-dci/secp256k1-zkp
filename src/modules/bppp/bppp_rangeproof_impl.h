@@ -1230,7 +1230,7 @@ static int secp256k1_bppp_rangeproof_batch_add_impl(
 static int secp256k1_bppp_rangeproof_batch_verify_impl(
     const secp256k1_context* ctx,
     secp256k1_scratch_space* scratch,
-    const secp256k1_ecmult_multi_batch *batch
+    secp256k1_ecmult_multi_batch *batch
 ) {
     int res;
     size_t scratch_checkpoint = 0;

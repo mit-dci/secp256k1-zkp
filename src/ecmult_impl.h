@@ -826,6 +826,24 @@ static int secp256k1_ecmult_multi_batch_add(struct secp256k1_ecmult_multi_batch 
     return 1;
 }
 
+static int secp256k1_ecmult_multi_batch_cb(secp256k1_scalar *sc, secp256k1_ge *pt, size_t idx, void *cbdata) {
+
+    struct secp256k1_ecmult_multi_batch * batch;
+
+    VERIFY_CHECK(sc != NULL);
+    VERIFY_CHECK(pt != NULL);
+    VERIFY_CHECK(cbdata != NULL);
+
+    batch = (struct secp256k1_ecmult_multi_batch *)cbdata;
+    if (idx > batch->n_members) {
+        return 0;
+    }
+
+    *sc = batch->scalars[idx];
+    *pt = batch->points[idx];
+    return 1;
+}
+
 static int secp256k1_ecmult_multi_simple_defer(secp256k1_ecmult_multi_callback cb, void *cbdata, size_t n_points, struct secp256k1_ecmult_multi_batch * batch) {
     size_t point_idx;
 
@@ -840,23 +858,13 @@ static int secp256k1_ecmult_multi_simple_defer(secp256k1_ecmult_multi_callback c
     return 1;
 }
 
-static int secp256k1_ecmult_multi_simple_finalize(secp256k1_gej *r, const secp256k1_scalar *inp_g_sc, const struct secp256k1_ecmult_multi_batch * batch) {
-    size_t idx;
-    secp256k1_gej tmpj;
+static int secp256k1_ecmult_multi_simple_finalize(secp256k1_gej *r, const secp256k1_scalar *inp_g_sc, struct secp256k1_ecmult_multi_batch * batch) {
+    secp256k1_scratch * scratch;
 
-    secp256k1_gej_set_infinity(r);
-    secp256k1_gej_set_infinity(&tmpj);
-    /* r = inp_g_sc*G */
-    secp256k1_ecmult(r, &tmpj, &secp256k1_scalar_zero, inp_g_sc);
-    for (idx = 0; idx < batch->n_members; idx++) {
-        secp256k1_ge point = batch->points[idx];
-        secp256k1_gej pointj;
-        secp256k1_scalar scalar = batch->scalars[idx];
-        /* r += scalar*point */
-        secp256k1_gej_set_ge(&pointj, &point);
-        secp256k1_ecmult(&tmpj, &pointj, &scalar, NULL);
-        secp256k1_gej_add_var(r, r, &tmpj, NULL);
-    }
+    scratch = secp256k1_scratch_create(&default_error_callback, 1024 * 1024 * 1024);
+    secp256k1_ecmult_multi_var(&default_error_callback, scratch, r, inp_g_sc, secp256k1_ecmult_multi_batch_cb, batch, batch->n_members);
+
+    secp256k1_scratch_destroy(&default_error_callback, scratch);
     return 1;
 }
 
@@ -932,7 +940,7 @@ static int secp256k1_ecmult_multi_defer(secp256k1_ecmult_multi_callback cb, void
     return secp256k1_ecmult_multi_simple_defer(cb, cbdata, n, batch);
 }
 
-static int secp256k1_ecmult_multi_finalize(secp256k1_gej *r, const secp256k1_scalar *inp_g_sc, const secp256k1_ecmult_multi_batch * batch) {
+static int secp256k1_ecmult_multi_finalize(secp256k1_gej *r, const secp256k1_scalar *inp_g_sc, secp256k1_ecmult_multi_batch * batch) {
     secp256k1_gej_set_infinity(r);
     if (inp_g_sc == NULL && batch->n_members == 0) {
         return 1;

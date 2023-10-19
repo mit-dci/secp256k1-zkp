@@ -252,7 +252,7 @@ int secp256k1_bppp_rangeproof_batch_add(
 int secp256k1_bppp_rangeproof_batch_verify(
     const secp256k1_context* ctx,
     secp256k1_scratch_space *scratch,
-    const secp256k1_ecmult_multi_batch *batch
+    secp256k1_ecmult_multi_batch *batch
 ) {
     VERIFY_CHECK(ctx != NULL);
     VERIFY_CHECK(scratch != NULL);

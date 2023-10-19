@@ -740,7 +740,7 @@ static int secp256k1_bppp_rangeproof_norm_product_batch_add(
 static int secp256k1_bppp_rangeproof_norm_product_batch_verify(
     const secp256k1_context* ctx,
     secp256k1_scratch_space* scratch,
-    const secp256k1_ecmult_multi_batch *batch
+    secp256k1_ecmult_multi_batch *batch
 ) {
 
     secp256k1_gej res;

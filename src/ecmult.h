@@ -63,7 +63,7 @@ typedef struct secp256k1_ecmult_multi_batch secp256k1_ecmult_multi_batch;
 
 static int secp256k1_ecmult_multi_defer(secp256k1_ecmult_multi_callback cb, void *cbdata, size_t n, struct secp256k1_ecmult_multi_batch * batch);
 
-static int secp256k1_ecmult_multi_finalize(secp256k1_gej *r, const secp256k1_scalar *inp_g_sc, const secp256k1_ecmult_multi_batch * batch);
+static int secp256k1_ecmult_multi_finalize(secp256k1_gej *r, const secp256k1_scalar *inp_g_sc, secp256k1_ecmult_multi_batch * batch);
 
 static void secp256k1_ecmult_multi_batch_destroy(secp256k1_ecmult_multi_batch *batch);
 
