@@ -211,6 +211,11 @@ SECP256K1_API SECP256K1_WARN_UNUSED_RESULT int secp256k1_bppp_rangeproof_batch_d
     struct secp256k1_ecmult_multi_batch *batch
 ) SECP256K1_ARG_NONNULL(1) SECP256K1_ARG_NONNULL(2);
 
+SECP256K1_API SECP256K1_WARN_UNUSED_RESULT int secp256k1_bppp_rangeproof_batch_clear(
+    const secp256k1_context* ctx,
+    struct secp256k1_ecmult_multi_batch *batch
+) SECP256K1_ARG_NONNULL(1) SECP256K1_ARG_NONNULL(2);
+
 # ifdef __cplusplus
 }
 # endif

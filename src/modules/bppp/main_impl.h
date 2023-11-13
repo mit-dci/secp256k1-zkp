@@ -304,4 +304,17 @@ int secp256k1_bppp_rangeproof_batch_destroy(
     return 1;
 }
 
+int secp256k1_bppp_rangeproof_batch_clear(
+    const secp256k1_context* ctx,
+    secp256k1_ecmult_multi_batch *batch
+) {
+    VERIFY_CHECK(ctx != NULL);
+    ARG_CHECK(batch != NULL);
+
+    memset(batch->points, 0, batch->capacity * sizeof(*(batch->points)));
+    memset(batch->scalars, 0, batch->capacity * sizeof(*(batch->scalars)));
+    batch->n_members = 0;
+    return 1;
+}
+
 #endif
